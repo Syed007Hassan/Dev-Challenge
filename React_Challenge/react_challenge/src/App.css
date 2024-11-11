@@ -1,0 +1,35 @@
+.App {
+  text-align: center;
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  padding: 40px;
+  color: white;
+}
+
+button {
+  padding: 10px 20px;
+  font-size: 16px;
+  margin: 10px;
+}
+
+button:disabled {
+  background-color: #555;
+  color: #ccc;
+}
+
+.User-data {
+  text-align: left;
+  margin-top: 20px;
+}
+
+.User-data h2 {
+  margin-bottom: 10px;
+}
+
+.User-data p {
+  font-size: 18px;
+  margin: 5px 0;
+} 
