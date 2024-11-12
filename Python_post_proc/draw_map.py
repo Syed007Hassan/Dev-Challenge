@@ -137,32 +137,44 @@ class drawMap():
         return filtered_lines
 
     def draw_lines(self, filtered_points):
+        """Enhanced visualization"""
         plt.figure(figsize=(12, 8))
+        
+        # Draw grid first
+        plt.grid(True, linestyle='--', alpha=0.4, color='gray')
+        
+        # Draw lines with enhanced style
         for ((x1, y1), (x2, y2)) in filtered_points:
-            # Convert from meters to pixels
-            pixel_x1 = x1 / self.resolution
-            pixel_y1 = y1 / self.resolution
-            pixel_x2 = x2 / self.resolution
-            pixel_y2 = y2 / self.resolution
-            
-            plt.plot([x1, x2], [y1, y2], 'k-', linewidth=1.5)
-            plt.scatter([x1, x2], [y1, y2], color='b', s=30)
+            plt.plot([x1, x2], [y1, y2], 'k-', linewidth=2.0, solid_capstyle='round')
+            plt.scatter([x1, x2], [y1, y2], color='blue', s=40, zorder=5)
 
         plt.gca().set_aspect('equal', adjustable='box')
-        plt.grid(True, linestyle='--', alpha=0.6)
-        plt.title('Processed Map Lines')
-        plt.xlabel('X (meters)')
-        plt.ylabel('Y (meters)')
-        # Set reasonable axis limits based on the map dimensions
-        plt.xlim([-8, 8])  # Adjust these values based on your map size
-        plt.ylim([-6, 6])  # Adjust these values based on your map size
+        plt.title('Processed Map Lines', pad=20, fontsize=14)
+        plt.xlabel('X (meters)', fontsize=12)
+        plt.ylabel('Y (meters)', fontsize=12)
+        
+        # Set reasonable axis limits
+        plt.xlim([-8, 8])
+        plt.ylim([-6, 6])
+        
+        # Add minor grid lines
+        plt.grid(True, which='minor', linestyle=':', alpha=0.2)
+        plt.minorticks_on()
+        
+        # Add a border around the plot
+        plt.gca().spines['top'].set_visible(True)
+        plt.gca().spines['right'].set_visible(True)
+        plt.gca().spines['bottom'].set_visible(True)
+        plt.gca().spines['left'].set_visible(True)
+        
         plt.show()
 
-    def connect_nearby_lines(self, lines, max_gap=0.3):
-        """Connect lines that are close to each other and have similar angles"""
+    def connect_nearby_lines(self, lines, max_gap=0.3, corner_tolerance=0.2):
+        """Enhanced line connection with corner detection"""
         connected_lines = []
         used = set()
         
+        # First pass: connect parallel lines
         for i, line1 in enumerate(lines):
             if i in used:
                 continue
@@ -173,33 +185,65 @@ class drawMap():
             while True:
                 found_connection = False
                 line1_obj = LineString([current_line[0], current_line[1]])
+                angle1 = self._get_line_angle(current_line)
                 
                 for j, line2 in enumerate(lines):
                     if j in used:
                         continue
                         
                     line2_obj = LineString([line2[0], line2[1]])
+                    angle2 = self._get_line_angle(line2)
                     
-                    # Check if lines have similar angles and are close to each other
-                    if (abs(self._get_line_angle(current_line) - self._get_line_angle(line2)) < np.radians(5) and
-                        line1_obj.distance(line2_obj) < max_gap):
-                        
-                        # Connect the lines
-                        points = list(line1_obj.coords) + list(line2_obj.coords)
-                        connected_line = ((min(p[0] for p in points), min(p[1] for p in points)),
-                                       (max(p[0] for p in points), max(p[1] for p in points)))
-                        
-                        current_line = connected_line
-                        used.add(j)
-                        found_connection = True
-                        break
+                    # Check for parallel lines
+                    if (abs(angle1 - angle2) < np.radians(5) or 
+                        abs(abs(angle1 - angle2) - np.pi) < np.radians(5)):
+                        if line1_obj.distance(line2_obj) < max_gap:
+                            points = list(line1_obj.coords) + list(line2_obj.coords)
+                            connected_line = ((min(p[0] for p in points), min(p[1] for p in points)),
+                                           (max(p[0] for p in points), max(p[1] for p in points)))
+                            current_line = connected_line
+                            used.add(j)
+                            found_connection = True
+                            break
                 
                 if not found_connection:
                     break
                     
             connected_lines.append(current_line)
         
-        return connected_lines
+        # Second pass: connect perpendicular lines (corners)
+        final_lines = []
+        used = set()
+        
+        for i, line1 in enumerate(connected_lines):
+            if i in used:
+                continue
+                
+            current_line = line1
+            used.add(i)
+            
+            line1_obj = LineString([current_line[0], current_line[1]])
+            angle1 = self._get_line_angle(current_line)
+            
+            for j, line2 in enumerate(connected_lines):
+                if j in used:
+                    continue
+                    
+                line2_obj = LineString([line2[0], line2[1]])
+                angle2 = self._get_line_angle(line2)
+                
+                # Check for perpendicular lines
+                if abs(abs(angle1 - angle2) - np.pi/2) < np.radians(5):
+                    if line1_obj.distance(line2_obj) < corner_tolerance:
+                        used.add(j)
+                        final_lines.append(line1)
+                        final_lines.append(line2)
+                        break
+            
+            if i not in used:
+                final_lines.append(current_line)
+            
+        return final_lines
 
     def map(self):
         """
